@@ -33,6 +33,6 @@ Thumbs.db
 # Build artifacts
 dist/
 
-# Test servers
-server/
-test-server/
+# Test servers (in root directory only)
+/server/
+/test-server/

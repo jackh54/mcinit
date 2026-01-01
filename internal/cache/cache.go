@@ -171,7 +171,7 @@ func (c *Cache) VerifyChecksum(jarPath, expectedChecksum, algorithm string) (boo
 	}
 
 	hasher := sha256.New()
-	if _, err := file.WriteTo(hasher); err != nil {
+	if _, err := io.Copy(hasher, file); err != nil {
 		return false, fmt.Errorf("failed to compute checksum: %w", err)
 	}
 
