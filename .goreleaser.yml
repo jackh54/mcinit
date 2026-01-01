@@ -77,23 +77,24 @@ brews:
     install: |
       bin.install "mcinit"
 
-scoops:
-  - name: mcinit
-    repository:
-      owner: jackh54
-      name: scoop-bucket
-    directory: bucket
-    homepage: "https://github.com/jackh54/mcinit"
-    description: "Cross-platform Minecraft developer server management tool"
-    license: MIT
+# Scoop and Winget disabled for now - uncomment when repositories are created
+# scoops:
+#   - name: mcinit
+#     repository:
+#       owner: jackh54
+#       name: scoop-bucket
+#     directory: bucket
+#     homepage: "https://github.com/jackh54/mcinit"
+#     description: "Cross-platform Minecraft developer server management tool"
+#     license: MIT
 
-winget:
-  - name: mcinit
-    publisher: jackh54
-    short_description: "Cross-platform Minecraft developer server management tool"
-    license: MIT
-    homepage: "https://github.com/jackh54/mcinit"
-    repository:
-      owner: jackh54
-      name: winget-pkgs
+# winget:
+#   - name: mcinit
+#     publisher: jackh54
+#     short_description: "Cross-platform Minecraft developer server management tool"
+#     license: MIT
+#     homepage: "https://github.com/jackh54/mcinit"
+#     repository:
+#       owner: jackh54
+#       name: winget-pkgs
 
