@@ -60,13 +60,13 @@ func (d *Downloader) DownloadJar(url, serverType, version, build, expectedChecks
 	// Download to temporary file first
 	tempPath := jarPath + ".tmp"
 	if err := d.downloadFile(url, tempPath, expectedChecksum, algorithm); err != nil {
-		os.Remove(tempPath)
+		_ = os.Remove(tempPath)
 		return "", fmt.Errorf("failed to download jar: %w", err)
 	}
 
 	// Move temp file to final location
 	if err := os.Rename(tempPath, jarPath); err != nil {
-		os.Remove(tempPath)
+		_ = os.Remove(tempPath)
 		return "", fmt.Errorf("failed to move downloaded jar: %w", err)
 	}
 
@@ -100,7 +100,7 @@ func (d *Downloader) downloadFile(url, destPath, expectedChecksum, algorithm str
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	// Download file
 	fmt.Printf("Downloading from %s...\n", url)
@@ -108,7 +108,7 @@ func (d *Downloader) downloadFile(url, destPath, expectedChecksum, algorithm str
 	if err != nil {
 		return fmt.Errorf("failed to download: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download failed with status: %s", resp.Status)

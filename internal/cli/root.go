@@ -41,25 +41,10 @@ func init() {
 	rootCmd.AddCommand(statusCmd)
 }
 
-// getConfigPath returns the config file path
-func getConfigPath() string {
-	if cfgFile != "" {
-		return cfgFile
-	}
-	return "mcinit.json"
-}
-
 // printf prints formatted output if not in dry-run mode
 func printf(format string, args ...interface{}) {
 	if verbose || !dryRun {
 		fmt.Printf(format, args...)
-	}
-}
-
-// verboseLog prints verbose output
-func verboseLog(format string, args ...interface{}) {
-	if verbose {
-		fmt.Printf("[DEBUG] "+format, args...)
 	}
 }
 

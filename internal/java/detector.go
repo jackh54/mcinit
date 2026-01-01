@@ -98,7 +98,7 @@ func (d *Detector) FindByMajorVersion(majorVersion int) (*Installation, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("Java %d not found", majorVersion)
+	return nil, fmt.Errorf("java %d not found", majorVersion)
 }
 
 // FindBest finds the best Java installation (highest version)
@@ -252,7 +252,7 @@ func parseJavaVersion(output string) (version string, major, minor, patch int, e
 			patchStr := strings.Split(parts[2], " ")[0]
 			patchStr = strings.Split(patchStr, "-")[0]
 			patchStr = strings.Split(patchStr, "+")[0]
-			fmt.Sscanf(patchStr, "%d", &patch)
+			_, _ = fmt.Sscanf(patchStr, "%d", &patch)
 		}
 	}
 

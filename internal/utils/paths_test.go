@@ -42,9 +42,7 @@ func TestNormalizePath(t *testing.T) {
 
 	// On Windows, should contain backslashes
 	if runtime.GOOS == "windows" {
-		if !filepath.IsAbs(normalized) && normalized == path {
-			// Should be different on Windows
-		}
+		_ = normalized // Platform-specific behavior varies
 	}
 }
 
@@ -66,7 +64,7 @@ func TestEnsureDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	testDir := filepath.Join(tempDir, "test", "nested", "dir")
 	
@@ -88,8 +86,8 @@ func TestPathExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	tempFile.Close()
-	defer os.Remove(tempFile.Name())
+	_ = tempFile.Close()
+	defer func() { _ = os.Remove(tempFile.Name()) }()
 
 	if !PathExists(tempFile.Name()) {
 		t.Error("PathExists() returned false for existing file")
@@ -105,7 +103,7 @@ func TestIsDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	if !IsDirectory(tempDir) {
 		t.Error("IsDirectory() returned false for directory")

@@ -38,7 +38,7 @@ func (r *Reader) Read(lines int, grepPattern string, sinceTime time.Time) ([]str
 	if err != nil {
 		return nil, fmt.Errorf("failed to open log file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var allLines []string
 	scanner := bufio.NewScanner(file)
@@ -51,11 +51,8 @@ func (r *Reader) Read(lines int, grepPattern string, sinceTime time.Time) ([]str
 			continue
 		}
 
-		// Apply time filter (simplified - actual log timestamp parsing would be more complex)
-		if !sinceTime.IsZero() {
-			// Skip time filtering for now - would need to parse log timestamps
-			// This is a simplified implementation
-		}
+		// Time filtering is not implemented in this simplified version
+		_ = sinceTime // Acknowledge unused parameter
 
 		allLines = append(allLines, line)
 	}
@@ -82,7 +79,7 @@ func (r *Reader) Follow(grepPattern string, output chan<- string, stop <-chan st
 	if err != nil {
 		return fmt.Errorf("failed to open log file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Seek to end of file
 	if _, err := file.Seek(0, 2); err != nil {

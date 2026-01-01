@@ -124,11 +124,11 @@ func (m *Manager) resolveJavaPath() (string, error) {
 	if m.config.Java.Version != "" && m.config.Java.Version != "auto" {
 		// Find specific version
 		var majorVersion int
-		fmt.Sscanf(m.config.Java.Version, "%d", &majorVersion)
+		_, _ = fmt.Sscanf(m.config.Java.Version, "%d", &majorVersion)
 		
 		inst, err := detector.FindByMajorVersion(majorVersion)
 		if err != nil {
-			return "", fmt.Errorf("Java %d not found: %w", majorVersion, err)
+			return "", fmt.Errorf("java %d not found: %w", majorVersion, err)
 		}
 		return inst.Path, nil
 	}

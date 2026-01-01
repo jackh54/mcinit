@@ -19,7 +19,7 @@ func (v *Validator) ValidateVersion(inst *Installation, requiredMajor int) error
 	}
 
 	if inst.Major < requiredMajor {
-		return fmt.Errorf("Java %d or higher required, found Java %d (%s)", requiredMajor, inst.Major, inst.Version)
+		return fmt.Errorf("java %d or higher required, found Java %d (%s)", requiredMajor, inst.Major, inst.Version)
 	}
 
 	return nil
@@ -53,7 +53,7 @@ func (v *Validator) GetRequiredJavaVersion(mcVersion string) int {
 
 	// Extract major version
 	var major, minor int
-	fmt.Sscanf(mcVersion, "%d.%d", &major, &minor)
+	_, _ = fmt.Sscanf(mcVersion, "%d.%d", &major, &minor)
 
 	// Minecraft 1.12-1.16
 	if major == 1 && minor >= 12 && minor <= 16 {

@@ -142,10 +142,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 		} else {
 			// Parse as version number
 			var majorVersion int
-			fmt.Sscanf(javaVersion, "%d", &majorVersion)
+			_, _ = fmt.Sscanf(javaVersion, "%d", &majorVersion)
 			inst, err := javaDetector.FindByMajorVersion(majorVersion)
 			if err != nil {
-				return fmt.Errorf("Java %d not found: %w", majorVersion, err)
+				return fmt.Errorf("java %d not found: %w", majorVersion, err)
 			}
 			javaInst = inst
 		}
@@ -301,13 +301,13 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() { _ = sourceFile.Close() }()
 
 	destFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() { _ = destFile.Close() }()
 
 	_, err = io.Copy(destFile, sourceFile)
 	return err

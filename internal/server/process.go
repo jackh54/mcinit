@@ -157,7 +157,7 @@ func (p *Process) gracefulStop(process *os.Process, pid int) error {
 			// Check if process still exists
 			if err := process.Signal(syscall.Signal(0)); err != nil {
 				// Process is gone
-				p.stateFile.Clear()
+				_ = p.stateFile.Clear()
 				return nil
 			}
 		}
@@ -180,7 +180,7 @@ func (p *Process) kill(process *os.Process) error {
 
 	// Wait a bit for process to die
 	time.Sleep(time.Second)
-	p.stateFile.Clear()
+	_ = p.stateFile.Clear()
 	
 	return nil
 }
@@ -217,6 +217,6 @@ func (p *Process) GetState() (*State, error) {
 func (p *Process) pipeOutput(reader io.Reader, writer io.Writer) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		fmt.Fprintln(writer, scanner.Text())
+		_, _ = fmt.Fprintln(writer, scanner.Text())
 	}
 }

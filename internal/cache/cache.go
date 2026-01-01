@@ -163,7 +163,7 @@ func (c *Cache) VerifyChecksum(jarPath, expectedChecksum, algorithm string) (boo
 	if err != nil {
 		return false, fmt.Errorf("failed to open jar file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// For now, only implement SHA256 verification
 	// SHA1 can be added later if needed

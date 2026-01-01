@@ -123,7 +123,7 @@ func TestSaveAndGetMetadata(t *testing.T) {
 
 	// Clean up
 	metaPath := cache.GetMetadataPath("test-server", "1.0.0", "1")
-	os.Remove(metaPath)
+	_ = os.Remove(metaPath)
 }
 
 func TestEnsureJarsDir(t *testing.T) {

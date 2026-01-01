@@ -19,7 +19,7 @@ func AddToGitignore(repoRoot, pathToIgnore string) error {
 		if err != nil {
 			return fmt.Errorf("failed to open .gitignore: %w", err)
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		scanner := bufio.NewScanner(file)
 		for scanner.Scan() {
@@ -49,11 +49,11 @@ func AddToGitignore(repoRoot, pathToIgnore string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create .gitignore: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	writer := bufio.NewWriter(file)
 	for _, line := range lines {
-		fmt.Fprintln(writer, line)
+		_, _ = fmt.Fprintln(writer, line)
 	}
 
 	return writer.Flush()
