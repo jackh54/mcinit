@@ -87,8 +87,8 @@ func (p *Process) Start(javaPath, jarPath string, jvmArgs []string, background b
 		
 		// Start goroutine to wait for process and update state
 		go func() {
-			p.cmd.Wait()
-			p.stateFile.Clear()
+			_ = p.cmd.Wait()
+			_ = p.stateFile.Clear()
 		}()
 	} else {
 		// In foreground mode, pipe output synchronously
@@ -97,10 +97,10 @@ func (p *Process) Start(javaPath, jarPath string, jvmArgs []string, background b
 		
 		// Wait for process to complete
 		if err := p.cmd.Wait(); err != nil {
-			p.stateFile.Clear()
+			_ = p.stateFile.Clear()
 			return fmt.Errorf("server process exited with error: %w", err)
 		}
-		p.stateFile.Clear()
+		_ = p.stateFile.Clear()
 	}
 
 	return nil
@@ -220,20 +220,3 @@ func (p *Process) pipeOutput(reader io.Reader, writer io.Writer) {
 		fmt.Fprintln(writer, scanner.Text())
 	}
 }
-
-// setupProcessGroup sets up the process group for proper cleanup
-func (p *Process) setupProcessGroup() {
-	if runtime.GOOS == "windows" {
-		// Windows: Set process group flag
-		p.cmd.SysProcAttr = &syscall.SysProcAttr{
-			// Windows-specific flags would go here
-			// For now, we keep it simple
-		}
-	} else {
-		// Unix: Create new process group
-		p.cmd.SysProcAttr = &syscall.SysProcAttr{
-			Setpgid: true,
-		}
-	}
-}
-

@@ -60,7 +60,7 @@ func init() {
 	initCmd.Flags().BoolVar(&gitignore, "gitignore", false, "Add server path to .gitignore")
 	initCmd.Flags().StringVar(&javaVersion, "java", "auto", "Java version or path (auto|17|21|/path/to/java)")
 
-	initCmd.MarkFlagRequired("mc")
+	_ = initCmd.MarkFlagRequired("mc")
 }
 
 func runInit(cmd *cobra.Command, args []string) error {

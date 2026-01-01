@@ -187,7 +187,7 @@ func (d *Detector) searchPath(basePath string) []*Installation {
 	var installations []*Installation
 
 	// Walk the directory tree
-	filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -235,17 +235,17 @@ func parseJavaVersion(output string) (version string, major, minor, patch int, e
 	// Check if old format (1.x.y)
 	if parts[0] == "1" && len(parts) >= 2 {
 		// Java 8 and earlier: 1.8.0_292
-		fmt.Sscanf(parts[1], "%d", &major)
+		_, _ = fmt.Sscanf(parts[1], "%d", &major)
 		if len(parts) >= 3 {
 			// Handle patch with optional build number (e.g., 0_292)
 			patchStr := strings.Split(parts[2], "_")[0]
-			fmt.Sscanf(patchStr, "%d", &minor)
+			_, _ = fmt.Sscanf(patchStr, "%d", &minor)
 		}
 	} else {
 		// Java 9+: 11.0.11, 17.0.1, etc.
-		fmt.Sscanf(parts[0], "%d", &major)
+		_, _ = fmt.Sscanf(parts[0], "%d", &major)
 		if len(parts) >= 2 {
-			fmt.Sscanf(parts[1], "%d", &minor)
+			_, _ = fmt.Sscanf(parts[1], "%d", &minor)
 		}
 		if len(parts) >= 3 {
 			// Handle patch with optional build info

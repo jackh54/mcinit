@@ -112,7 +112,7 @@ func TestIsDirectory(t *testing.T) {
 	}
 
 	tempFile := filepath.Join(tempDir, "test.txt")
-	os.WriteFile(tempFile, []byte("test"), 0644)
+	_ = os.WriteFile(tempFile, []byte("test"), 0644)
 
 	if IsDirectory(tempFile) {
 		t.Error("IsDirectory() returned true for file")
