@@ -68,8 +68,7 @@ brews:
     repository:
       owner: jackh54
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    folder: Formula
+    directory: Formula
     homepage: "https://github.com/jackh54/mcinit"
     description: "Cross-platform Minecraft developer server management tool"
     license: "MIT"
@@ -83,8 +82,7 @@ scoops:
     repository:
       owner: jackh54
       name: scoop-bucket
-      token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
-    folder: bucket
+    directory: bucket
     homepage: "https://github.com/jackh54/mcinit"
     description: "Cross-platform Minecraft developer server management tool"
     license: MIT
@@ -98,5 +96,4 @@ winget:
     repository:
       owner: jackh54
       name: winget-pkgs
-      token: "{{ .Env.WINGET_PKGS_GITHUB_TOKEN }}"
 
