@@ -1,0 +1,102 @@
+# GoReleaser configuration
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod download
+
+builds:
+  - id: mcinit
+    main: ./cmd/mcinit
+    binary: mcinit
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
+archives:
+  - id: mcinit
+    format: tar.gz
+    name_template: 'mcinit_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: jackh54
+    name: mcinit
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"
+
+brews:
+  - name: mcinit
+    repository:
+      owner: jackh54
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    folder: Formula
+    homepage: "https://github.com/jackh54/mcinit"
+    description: "Cross-platform Minecraft developer server management tool"
+    license: "MIT"
+    test: |
+      system "#{bin}/mcinit --version"
+    install: |
+      bin.install "mcinit"
+
+scoops:
+  - name: mcinit
+    repository:
+      owner: jackh54
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
+    folder: bucket
+    homepage: "https://github.com/jackh54/mcinit"
+    description: "Cross-platform Minecraft developer server management tool"
+    license: MIT
+
+winget:
+  - name: mcinit
+    publisher: jackh54
+    short_description: "Cross-platform Minecraft developer server management tool"
+    license: MIT
+    homepage: "https://github.com/jackh54/mcinit"
+    repository:
+      owner: jackh54
+      name: winget-pkgs
+      token: "{{ .Env.WINGET_PKGS_GITHUB_TOKEN }}"
+
