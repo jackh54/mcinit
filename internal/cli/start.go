@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/jackh54/mcinit/internal/server"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +14,7 @@ var (
 var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the server process",
-	Long:  `Start the Minecraft server in the current directory.`,
+	Long:  `Start the Minecraft server in the current directory, or the one holding --config.`,
 	Example: `  mcinit start
   mcinit start --background
   mcinit start --args "-XX:+UseG1GC"`,
@@ -28,13 +27,10 @@ func init() {
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
-	// Get server directory
-	serverDir := "."
-
-	// Create server manager
-	mgr, err := server.NewManager(serverDir)
+	// Resolve the server from --config (or ./mcinit.json)
+	mgr, err := newManager()
 	if err != nil {
-		return fmt.Errorf("failed to create server manager: %w", err)
+		return err
 	}
 
 	// Load configuration

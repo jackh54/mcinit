@@ -12,9 +12,10 @@ import (
 
 // Manager manages server lifecycle
 type Manager struct {
-	serverDir string
-	config    *config.Config
-	process   *Process
+	serverDir  string
+	configPath string
+	config     *config.Config
+	process    *Process
 }
 
 // NewManager creates a new Manager instance
@@ -25,15 +26,35 @@ func NewManager(serverDir string) (*Manager, error) {
 	}
 
 	return &Manager{
-		serverDir: absPath,
-		process:   NewProcess(absPath),
+		serverDir:  absPath,
+		configPath: filepath.Join(absPath, "mcinit.json"),
+		process:    NewProcess(absPath),
 	}, nil
+}
+
+// NewManagerForConfig creates a Manager for the server whose config file is cfgPath.
+// The server folder is the folder that holds the config file.
+func NewManagerForConfig(cfgPath string) (*Manager, error) {
+	absCfg, err := utils.AbsolutePath(cfgPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve config path: %w", err)
+	}
+	m, err := NewManager(filepath.Dir(absCfg))
+	if err != nil {
+		return nil, err
+	}
+	m.configPath = absCfg
+	return m, nil
+}
+
+// ServerDir returns the absolute server folder
+func (m *Manager) ServerDir() string {
+	return m.serverDir
 }
 
 // LoadConfig loads the server configuration
 func (m *Manager) LoadConfig() error {
-	cfgPath := filepath.Join(m.serverDir, "mcinit.json")
-	cfg, err := config.Load(cfgPath)
+	cfg, err := config.Load(m.configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}

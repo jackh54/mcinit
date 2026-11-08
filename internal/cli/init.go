@@ -87,10 +87,23 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Resolve server path
+	// Resolve server path and config path. With --config, the config is written there and
+	// its folder is the server folder.
 	absPath, err := utils.AbsolutePath(serverPath)
 	if err != nil {
 		return fmt.Errorf("failed to resolve server path: %w", err)
+	}
+	cfgPath := filepath.Join(absPath, defaultConfigName)
+	if cfgFile != "" {
+		absCfg, err := utils.AbsolutePath(cfgFile)
+		if err != nil {
+			return fmt.Errorf("failed to resolve --config path: %w", err)
+		}
+		cfgDir := filepath.Dir(absCfg)
+		if cmd.Flags().Changed("path") && cfgDir != absPath {
+			return fmt.Errorf("--config (%s) and --path (%s) point to different folders", absCfg, absPath)
+		}
+		absPath, cfgPath = cfgDir, absCfg
 	}
 
 	// Derive server name from path if not provided
@@ -106,6 +119,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		printf("  Type: %s\n", serverType)
 		printf("  Version: %s\n", mcVersion)
 		printf("  Path: %s\n", absPath)
+		printf("  Config: %s\n", cfgPath)
 		printf("  Name: %s\n", serverName)
 		printf("  RAM: Xms=%s Xmx=%s\n", xms, xmx)
 		printf("  Flags: %s\n", jvmFlags)
@@ -120,9 +134,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if config already exists
-	cfgPath := filepath.Join(absPath, "mcinit.json")
 	if config.Exists(cfgPath) {
-		return fmt.Errorf("server already initialized (mcinit.json exists)")
+		return fmt.Errorf("server already initialized (%s exists)", cfgPath)
 	}
 
 	// Detect and validate Java
@@ -226,7 +239,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
-	printf("Configuration saved to mcinit.json\n")
+	printf("Configuration saved to %s\n", cfgPath)
 
 	// Create EULA file
 	eulaPath := filepath.Join(absPath, "eula.txt")
@@ -286,11 +299,18 @@ func runInit(cmd *cobra.Command, args []string) error {
 	printf("Server initialized successfully!\n")
 	printf("\n")
 	printf("Next steps:\n")
-	printf("  cd %s\n", serverPath)
-	if !acceptEula {
-		printf("  # Accept the EULA by editing eula.txt\n")
+	if cfgFile != "" {
+		if !acceptEula {
+			printf("  # Accept the EULA by editing %s\n", eulaPath)
+		}
+		printf("  mcinit start --config %s\n", cfgPath)
+	} else {
+		printf("  cd %s\n", serverPath)
+		if !acceptEula {
+			printf("  # Accept the EULA by editing eula.txt\n")
+		}
+		printf("  mcinit start\n")
 	}
-	printf("  mcinit start\n")
 	printf("\n")
 
 	return nil

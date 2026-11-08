@@ -37,8 +37,11 @@ func init() {
 }
 
 func runLogs(cmd *cobra.Command, args []string) error {
-	// Get server directory
-	serverDir := "."
+	// Resolve the server folder from --config (or the current directory)
+	_, serverDir, err := resolveConfig()
+	if err != nil {
+		return err
+	}
 
 	// Create log reader
 	reader := logs.NewReader(serverDir)

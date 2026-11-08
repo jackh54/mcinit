@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/jackh54/mcinit/internal/server"
 	"github.com/spf13/cobra"
 )
 
@@ -25,13 +24,10 @@ func init() {
 }
 
 func runStop(cmd *cobra.Command, args []string) error {
-	// Get server directory
-	serverDir := "."
-
-	// Create server manager
-	mgr, err := server.NewManager(serverDir)
+	// Resolve the server from --config (or ./mcinit.json)
+	mgr, err := newManager()
 	if err != nil {
-		return fmt.Errorf("failed to create server manager: %w", err)
+		return err
 	}
 
 	// Check if running
