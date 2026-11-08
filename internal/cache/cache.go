@@ -48,6 +48,14 @@ func New() (*Cache, error) {
 	return cache, nil
 }
 
+// NewWithDir creates a Cache rooted at dir (used by tests and custom setups).
+func NewWithDir(dir string) (*Cache, error) {
+	if err := utils.EnsureDir(dir); err != nil {
+		return nil, fmt.Errorf("failed to create cache directory: %w", err)
+	}
+	return &Cache{baseDir: dir}, nil
+}
+
 // getCacheDir returns the platform-specific cache directory
 func getCacheDir() (string, error) {
 	var cacheDir string

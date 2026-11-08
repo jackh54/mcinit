@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jackh54/mcinit/internal/utils"
@@ -19,6 +21,8 @@ import (
 type Downloader struct {
 	cache  *Cache
 	client *http.Client
+	// UserAgent is sent with download requests when set.
+	UserAgent string
 }
 
 // NewDownloader creates a new Downloader instance
@@ -33,6 +37,11 @@ func NewDownloader(cache *Cache) *Downloader {
 
 // DownloadJar downloads a jar file to the cache
 func (d *Downloader) DownloadJar(url, serverType, version, build, expectedChecksum, algorithm string) (string, error) {
+	return d.DownloadJarContext(context.Background(), url, serverType, version, build, expectedChecksum, algorithm)
+}
+
+// DownloadJarContext is DownloadJar with a context for cancellation.
+func (d *Downloader) DownloadJarContext(ctx context.Context, url, serverType, version, build, expectedChecksum, algorithm string) (string, error) {
 	// Check if already cached and valid
 	if d.cache.HasJar(serverType, version, build) {
 		jarPath := d.cache.GetJarPath(serverType, version, build)
@@ -59,7 +68,7 @@ func (d *Downloader) DownloadJar(url, serverType, version, build, expectedChecks
 
 	// Download to temporary file first
 	tempPath := jarPath + ".tmp"
-	if err := d.downloadFile(url, tempPath, expectedChecksum, algorithm); err != nil {
+	if err := d.downloadFile(ctx, url, tempPath, expectedChecksum, algorithm); err != nil {
 		_ = os.Remove(tempPath)
 		return "", fmt.Errorf("failed to download jar: %w", err)
 	}
@@ -89,7 +98,7 @@ func (d *Downloader) DownloadJar(url, serverType, version, build, expectedChecks
 }
 
 // downloadFile downloads a file from a URL with optional checksum verification
-func (d *Downloader) downloadFile(url, destPath, expectedChecksum, algorithm string) error {
+func (d *Downloader) downloadFile(ctx context.Context, url, destPath, expectedChecksum, algorithm string) error {
 	// Ensure parent directory exists
 	if err := utils.EnsureDir(filepath.Dir(destPath)); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
@@ -104,7 +113,14 @@ func (d *Downloader) downloadFile(url, destPath, expectedChecksum, algorithm str
 
 	// Download file
 	fmt.Printf("Downloading from %s...\n", url)
-	resp, err := d.client.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to build request: %w", err)
+	}
+	if d.UserAgent != "" {
+		req.Header.Set("User-Agent", d.UserAgent)
+	}
+	resp, err := d.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to download: %w", err)
 	}
@@ -141,7 +157,7 @@ func (d *Downloader) downloadFile(url, destPath, expectedChecksum, algorithm str
 	// Verify checksum if provided
 	if expectedChecksum != "" && hasher != nil {
 		actualChecksum := hex.EncodeToString(hasher.Sum(nil))
-		if actualChecksum != expectedChecksum {
+		if !strings.EqualFold(actualChecksum, expectedChecksum) {
 			return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedChecksum, actualChecksum)
 		}
 		fmt.Printf("Checksum verified (%s)\n", algorithm)

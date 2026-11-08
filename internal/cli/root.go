@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/jackh54/mcinit/internal/buildinfo"
+
 	"github.com/spf13/cobra"
 )
 
@@ -24,11 +26,12 @@ local dev servers quickly and reproducibly across Windows, macOS, and Linux.`,
 
 // Execute runs the root command
 func Execute() error {
+	rootCmd.Version = buildinfo.Version
 	return rootCmd.Execute()
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./mcinit.json)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file; its folder is the server folder (default is ./mcinit.json)")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "preview changes without executing")
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "enable debug logging")
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")

@@ -1,29 +1,13 @@
 package provider
 
-import (
-	"net/http"
-	"time"
-
-	"github.com/jackh54/mcinit/internal/cache"
-)
-
-// FoliaProvider implements Provider for Folia (uses PaperMC API)
+// FoliaProvider implements Provider for Folia (uses the PaperMC Fill API)
 type FoliaProvider struct {
 	*PaperProvider
 }
 
 // NewFoliaProvider creates a new FoliaProvider
 func NewFoliaProvider() *FoliaProvider {
-	c, _ := cache.New()
-	return &FoliaProvider{
-		PaperProvider: &PaperProvider{
-			cache:       c,
-			projectName: "folia",
-			client: &http.Client{
-				Timeout: 30 * time.Second,
-			},
-		},
-	}
+	return &FoliaProvider{PaperProvider: newFillProvider("folia")}
 }
 
 // GetName returns the provider name

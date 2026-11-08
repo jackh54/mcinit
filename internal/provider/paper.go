@@ -1,29 +1,48 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/jackh54/mcinit/internal/buildinfo"
 	"github.com/jackh54/mcinit/internal/cache"
 )
 
-// PaperProvider implements Provider for PaperMC
+// fillBaseURL is the PaperMC Fill v3 API. The v2 API (api.papermc.io/v2) returns 410 Gone.
+const fillBaseURL = "https://fill.papermc.io/v3"
+
+// fillServerDownload is the downloads key for the server jar in a Fill build.
+const fillServerDownload = "server:default"
+
+// PaperProvider implements Provider for PaperMC projects (paper, folia, velocity, waterfall)
+// using the Fill v3 API.
 type PaperProvider struct {
 	cache       *cache.Cache
 	client      *http.Client
 	projectName string
+	baseURL     string
 }
 
 // NewPaperProvider creates a new PaperProvider
 func NewPaperProvider() *PaperProvider {
+	return newFillProvider("paper")
+}
+
+func newFillProvider(project string) *PaperProvider {
 	c, _ := cache.New()
 	return &PaperProvider{
 		cache:       c,
-		projectName: "paper",
+		projectName: project,
+		baseURL:     fillBaseURL,
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -35,203 +54,250 @@ func (p *PaperProvider) GetName() string {
 	return p.projectName
 }
 
-// GetAvailableVersions returns all available Minecraft versions
+// GetAvailableVersions returns all available versions, newest first, in the order Fill lists them.
 func (p *PaperProvider) GetAvailableVersions(ctx context.Context) ([]string, error) {
-	url := fmt.Sprintf("https://api.papermc.io/v2/projects/%s", p.projectName)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
+	var project fillProject
+	if err := p.getJSON(ctx, p.projectURL(), &project); err != nil {
 		return nil, err
 	}
-
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	var project PaperProject
-	if err := json.Unmarshal(body, &project); err != nil {
-		return nil, err
-	}
-
-	return project.Versions, nil
+	return flattenVersionGroups(project.Versions)
 }
 
-// GetLatestBuild returns the latest build for a version
+// GetLatestBuild returns the build mcinit would pick for "latest": the newest STABLE build,
+// else the newest BETA, else the newest ALPHA.
 func (p *PaperProvider) GetLatestBuild(ctx context.Context, version string) (string, error) {
-	url := fmt.Sprintf("https://api.papermc.io/v2/projects/%s/versions/%s", p.projectName, version)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	b, err := p.resolveBuild(ctx, version, "latest")
 	if err != nil {
 		return "", err
 	}
-
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	var versionInfo PaperVersion
-	if err := json.Unmarshal(body, &versionInfo); err != nil {
-		return "", err
-	}
-
-	if len(versionInfo.Builds) == 0 {
-		return "", fmt.Errorf("no builds available for version %s", version)
-	}
-
-	// Return the latest build (last in the array)
-	return fmt.Sprintf("%d", versionInfo.Builds[len(versionInfo.Builds)-1]), nil
+	return strconv.Itoa(b.ID), nil
 }
 
-// DownloadJar downloads the Paper server jar
+// DownloadJar downloads the server jar and verifies its sha256 against the Fill response.
 func (p *PaperProvider) DownloadJar(ctx context.Context, version, build string) (string, string, string, error) {
-	// Resolve "latest" build if needed
-	if build == "" || build == "latest" {
-		latestBuild, err := p.GetLatestBuild(ctx, version)
-		if err != nil {
-			return "", "", "", fmt.Errorf("failed to get latest build: %w", err)
-		}
-		build = latestBuild
-	}
-
-	// Get build information
-	buildInfo, err := p.getBuildInfo(ctx, version, build)
+	b, err := p.resolveBuild(ctx, version, build)
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to get build info: %w", err)
+		return "", "", "", err
+	}
+	dl, err := b.serverDownload()
+	if err != nil {
+		return "", "", "", fmt.Errorf("%s %s build %d: %w", p.projectName, version, b.ID, err)
 	}
 
-	downloadURL := fmt.Sprintf("https://api.papermc.io/v2/projects/%s/versions/%s/builds/%s/downloads/%s",
-		p.projectName, version, build, buildInfo.Downloads.Application.Name)
-
-	checksum := buildInfo.Downloads.Application.SHA256
-
-	// Download using cache/downloader
+	if p.cache == nil {
+		return "", "", "", errors.New("cache directory unavailable")
+	}
 	downloader := cache.NewDownloader(p.cache)
-	localPath, err := downloader.DownloadJar(downloadURL, p.projectName, version, build, checksum, "sha256")
+	downloader.UserAgent = buildinfo.UserAgent()
+	localPath, err := downloader.DownloadJarContext(ctx, dl.URL, p.projectName, version, strconv.Itoa(b.ID), dl.Checksums.SHA256, "sha256")
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to download jar: %w", err)
 	}
 
-	return localPath, downloadURL, checksum, nil
+	return localPath, dl.URL, dl.Checksums.SHA256, nil
 }
 
-// GetDownloadURL returns the download URL
+// GetDownloadURL returns the server jar URL for a build
 func (p *PaperProvider) GetDownloadURL(ctx context.Context, version, build string) (string, error) {
-	if build == "" || build == "latest" {
-		latestBuild, err := p.GetLatestBuild(ctx, version)
-		if err != nil {
-			return "", err
-		}
-		build = latestBuild
-	}
-
-	buildInfo, err := p.getBuildInfo(ctx, version, build)
+	b, err := p.resolveBuild(ctx, version, build)
 	if err != nil {
 		return "", err
 	}
-
-	return fmt.Sprintf("https://api.papermc.io/v2/projects/%s/versions/%s/builds/%s/downloads/%s",
-		p.projectName, version, build, buildInfo.Downloads.Application.Name), nil
+	dl, err := b.serverDownload()
+	if err != nil {
+		return "", err
+	}
+	return dl.URL, nil
 }
 
-// GetChecksum returns the checksum
+// GetChecksum returns the sha256 of the server jar for a build
 func (p *PaperProvider) GetChecksum(ctx context.Context, version, build string) (string, string, error) {
-	if build == "" || build == "latest" {
-		latestBuild, err := p.GetLatestBuild(ctx, version)
-		if err != nil {
-			return "", "", err
-		}
-		build = latestBuild
-	}
-
-	buildInfo, err := p.getBuildInfo(ctx, version, build)
+	b, err := p.resolveBuild(ctx, version, build)
 	if err != nil {
 		return "", "", err
 	}
-
-	return "sha256", buildInfo.Downloads.Application.SHA256, nil
+	dl, err := b.serverDownload()
+	if err != nil {
+		return "", "", err
+	}
+	return "sha256", dl.Checksums.SHA256, nil
 }
 
-// getBuildInfo fetches build information from the API
-func (p *PaperProvider) getBuildInfo(ctx context.Context, version, build string) (*PaperBuild, error) {
-	url := fmt.Sprintf("https://api.papermc.io/v2/projects/%s/versions/%s/builds/%s",
-		p.projectName, version, build)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+// resolveBuild fetches the builds for a version and picks one.
+func (p *PaperProvider) resolveBuild(ctx context.Context, version, build string) (*fillBuild, error) {
+	var builds []fillBuild
+	err := p.getJSON(ctx, p.projectURL()+"/versions/"+url.PathEscape(version)+"/builds", &builds)
 	if err != nil {
-		return nil, err
+		var apiErr *fillAPIError
+		if errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound {
+			return nil, fmt.Errorf("%s has no version %q (see https://fill.papermc.io/v3/projects/%s for available versions)",
+				p.projectName, version, p.projectName)
+		}
+		return nil, fmt.Errorf("failed to list %s %s builds: %w", p.projectName, version, err)
 	}
+	b, err := selectBuild(builds, build)
+	if err != nil {
+		return nil, fmt.Errorf("%s %s: %w", p.projectName, version, err)
+	}
+	return b, nil
+}
+
+// channelRank orders release channels; higher is preferred. Unknown channels rank lowest.
+func channelRank(channel string) int {
+	switch strings.ToUpper(channel) {
+	case "RECOMMENDED", "STABLE":
+		return 3
+	case "BETA":
+		return 2
+	case "ALPHA":
+		return 1
+	default:
+		return 0
+	}
+}
+
+// selectBuild picks a build. For "" or "latest" it returns the newest build in the best
+// available channel (STABLE, then BETA, then ALPHA). Otherwise build is a build number.
+func selectBuild(builds []fillBuild, build string) (*fillBuild, error) {
+	if len(builds) == 0 {
+		return nil, errors.New("no builds available")
+	}
+
+	if build != "" && build != "latest" {
+		id, err := strconv.Atoi(build)
+		if err != nil {
+			return nil, fmt.Errorf("invalid build %q: must be a number or \"latest\"", build)
+		}
+		for i := range builds {
+			if builds[i].ID == id {
+				return &builds[i], nil
+			}
+		}
+		return nil, fmt.Errorf("build %d not found", id)
+	}
+
+	best := -1
+	for i := range builds {
+		if best < 0 {
+			best = i
+			continue
+		}
+		ri, rb := channelRank(builds[i].Channel), channelRank(builds[best].Channel)
+		if ri > rb || (ri == rb && builds[i].ID > builds[best].ID) {
+			best = i
+		}
+	}
+	return &builds[best], nil
+}
+
+func (p *PaperProvider) projectURL() string {
+	return strings.TrimRight(p.baseURL, "/") + "/projects/" + url.PathEscape(p.projectName)
+}
+
+// getJSON GETs url with mcinit's User-Agent and decodes a 200 response into v.
+func (p *PaperProvider) getJSON(ctx context.Context, rawURL string, v any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", buildinfo.UserAgent())
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var buildInfo PaperBuild
-	if err := json.Unmarshal(body, &buildInfo); err != nil {
-		return nil, err
+	if resp.StatusCode != http.StatusOK {
+		apiErr := &fillAPIError{Status: resp.StatusCode}
+		_ = json.Unmarshal(body, apiErr)
+		return apiErr
 	}
 
-	return &buildInfo, nil
+	if err := json.Unmarshal(body, v); err != nil {
+		return fmt.Errorf("failed to parse response from %s: %w", rawURL, err)
+	}
+	return nil
 }
 
-// PaperMC API structures
-
-type PaperProject struct {
-	ProjectID   string   `json:"project_id"`
-	ProjectName string   `json:"project_name"`
-	Versions    []string `json:"versions"`
+// flattenVersionGroups turns Fill's {"26.3": ["26.3"], "1.21": ["1.21.11", ...]} into a flat
+// list while keeping the API's ordering (Go maps would lose it).
+func flattenVersionGroups(raw json.RawMessage) ([]string, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse versions: %w", err)
+	}
+	if d, ok := tok.(json.Delim); !ok || d != '{' {
+		return nil, errors.New("failed to parse versions: expected an object")
+	}
+	var out []string
+	for dec.More() {
+		if _, err := dec.Token(); err != nil { // group key
+			return nil, fmt.Errorf("failed to parse versions: %w", err)
+		}
+		var group []string
+		if err := dec.Decode(&group); err != nil {
+			return nil, fmt.Errorf("failed to parse versions: %w", err)
+		}
+		out = append(out, group...)
+	}
+	return out, nil
 }
 
-type PaperVersion struct {
-	ProjectID   string `json:"project_id"`
-	ProjectName string `json:"project_name"`
-	Version     string `json:"version"`
-	Builds      []int  `json:"builds"`
+// Fill v3 API structures
+
+type fillProject struct {
+	Project struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"project"`
+	Versions json.RawMessage `json:"versions"`
 }
 
-type PaperBuild struct {
-	ProjectID   string `json:"project_id"`
-	ProjectName string `json:"project_name"`
-	Version     string `json:"version"`
-	Build       int    `json:"build"`
-	Time        string `json:"time"`
-	Channel     string `json:"channel"`
-	Downloads   struct {
-		Application struct {
-			Name   string `json:"name"`
-			SHA256 string `json:"sha256"`
-		} `json:"application"`
-	} `json:"downloads"`
+type fillBuild struct {
+	ID        int                     `json:"id"`
+	Time      string                  `json:"time"`
+	Channel   string                  `json:"channel"`
+	Downloads map[string]fillDownload `json:"downloads"`
+}
+
+type fillDownload struct {
+	Name      string `json:"name"`
+	Checksums struct {
+		SHA256 string `json:"sha256"`
+	} `json:"checksums"`
+	Size int64  `json:"size"`
+	URL  string `json:"url"`
+}
+
+func (b *fillBuild) serverDownload() (*fillDownload, error) {
+	dl, ok := b.Downloads[fillServerDownload]
+	if !ok || dl.URL == "" {
+		return nil, fmt.Errorf("build %d has no %q download", b.ID, fillServerDownload)
+	}
+	if dl.Checksums.SHA256 == "" {
+		return nil, fmt.Errorf("build %d has no sha256 checksum", b.ID)
+	}
+	return &dl, nil
+}
+
+// fillAPIError is a non-200 response from Fill, e.g. {"ok":false,"error":"version_not_found",...}.
+type fillAPIError struct {
+	Status  int    `json:"-"`
+	Code    string `json:"error"`
+	Message string `json:"message"`
+}
+
+func (e *fillAPIError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("PaperMC API returned %d: %s", e.Status, e.Message)
+	}
+	return fmt.Sprintf("PaperMC API returned %d", e.Status)
 }
